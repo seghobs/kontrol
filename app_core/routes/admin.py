@@ -1,10 +1,11 @@
 from datetime import datetime
+import html
 
 from flask import Blueprint, jsonify, redirect, render_template, request, session, url_for
 
 from app_core.config import ADMIN_PASSWORD
 from app_core.instagram_api import fetch_current_user, validate_token
-from app_core.storage import load_tokens, save_tokens
+from app_core.storage import load_exemptions, load_tokens, save_exemptions, save_tokens
 from app_core.token_service import clear_logout_state, relogin_saved_user
 
 
@@ -15,6 +16,10 @@ def _require_admin():
     if not session.get("admin_logged_in"):
         return jsonify({"success": False, "message": "Yetkisiz erisim"}), 401
     return None
+
+
+def _normalize_post_link(value):
+    return html.unescape(str(value or "").strip())
 
 
 @admin_bp.route("", methods=["GET"])
@@ -233,3 +238,104 @@ def validate_token_route():
             return jsonify({"success": True, "is_valid": is_valid, "is_active": token.get("is_active", False)})
 
     return jsonify({"success": False, "message": "Token bulunamadi"}), 404
+
+
+@admin_bp.route("/get_exemptions", methods=["GET"])
+def get_exemptions():
+    auth_error = _require_admin()
+    if auth_error:
+        return auth_error
+
+    exemptions = load_exemptions()
+    grouped = []
+    total = 0
+
+    for post_link, usernames in exemptions.items():
+        clean_usernames = sorted({str(username).strip() for username in usernames if str(username).strip()})
+        if not clean_usernames:
+            continue
+        grouped.append(
+            {
+                "post_link": post_link,
+                "usernames": clean_usernames,
+                "count": len(clean_usernames),
+            }
+        )
+        total += len(clean_usernames)
+
+    grouped.sort(key=lambda item: item["post_link"])
+    return jsonify({"success": True, "groups": grouped, "total": total})
+
+
+@admin_bp.route("/add_exemption", methods=["POST"])
+def add_exemption_admin():
+    auth_error = _require_admin()
+    if auth_error:
+        return auth_error
+
+    data = request.get_json() or {}
+    post_link = _normalize_post_link(data.get("post_link"))
+    username = str(data.get("username", "")).strip().lstrip("@")
+
+    if not post_link or not username:
+        return jsonify({"success": False, "message": "post_link ve username zorunlu"}), 400
+
+    exemptions = load_exemptions()
+    current_users = set(exemptions.get(post_link, []))
+    already_exists = username in current_users
+    current_users.add(username)
+    exemptions[post_link] = sorted(current_users)
+    save_exemptions(exemptions)
+
+    message = f"@{username} zaten izinli" if already_exists else f"@{username} izinli listesine eklendi"
+    return jsonify({"success": True, "message": message})
+
+
+@admin_bp.route("/delete_exemption", methods=["POST"])
+def delete_exemption_admin():
+    auth_error = _require_admin()
+    if auth_error:
+        return auth_error
+
+    data = request.get_json() or {}
+    post_link = _normalize_post_link(data.get("post_link"))
+    username = str(data.get("username", "")).strip().lstrip("@")
+
+    if not post_link or not username:
+        return jsonify({"success": False, "message": "post_link ve username zorunlu"}), 400
+
+    exemptions = load_exemptions()
+    users = exemptions.get(post_link, [])
+    updated_users = [user for user in users if user != username]
+
+    if len(updated_users) == len(users):
+        return jsonify({"success": False, "message": "Kayit bulunamadi"}), 404
+
+    if updated_users:
+        exemptions[post_link] = updated_users
+    else:
+        exemptions.pop(post_link, None)
+
+    save_exemptions(exemptions)
+    return jsonify({"success": True, "message": f"@{username} izinli listesinden kaldirildi"})
+
+
+@admin_bp.route("/delete_exemptions_by_link", methods=["POST"])
+def delete_exemptions_by_link_admin():
+    auth_error = _require_admin()
+    if auth_error:
+        return auth_error
+
+    data = request.get_json() or {}
+    post_link = _normalize_post_link(data.get("post_link"))
+    if not post_link:
+        return jsonify({"success": False, "message": "post_link zorunlu"}), 400
+
+    exemptions = load_exemptions()
+    if post_link not in exemptions:
+        return jsonify({"success": False, "message": "Link kaydi bulunamadi"}), 404
+
+    removed_count = len(exemptions.get(post_link, []))
+    exemptions.pop(post_link, None)
+    save_exemptions(exemptions)
+    return jsonify({"success": True, "message": f"{removed_count} izinli kullanici kaldirildi"})

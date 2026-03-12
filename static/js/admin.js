@@ -12,6 +12,151 @@ function showAlert(message, type = "success") {
     }, 5000);
 }
 
+function toggleExemptionsPanel() {
+    const body = document.getElementById("exemptionsSectionBody");
+    const button = document.getElementById("toggleExemptionsBtn");
+    const isCollapsed = body.classList.contains("collapsed");
+
+    if (isCollapsed) {
+        body.classList.remove("collapsed");
+        button.innerHTML = '<i class="fas fa-chevron-up"></i> Kapat';
+        if (!body.dataset.loaded) {
+            loadExemptions();
+            body.dataset.loaded = "true";
+        }
+    } else {
+        body.classList.add("collapsed");
+        button.innerHTML = '<i class="fas fa-chevron-down"></i> Aç';
+    }
+}
+
+async function postJson(url, payload) {
+    const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+    return response.json();
+}
+
+async function loadExemptions() {
+    const loading = document.getElementById("exemptionsLoading");
+    const list = document.getElementById("exemptionsList");
+
+    loading.classList.add("show");
+    list.innerHTML = "";
+
+    try {
+        const response = await fetch("/admin/get_exemptions");
+        const data = await response.json();
+
+        loading.classList.remove("show");
+        if (!data.success) {
+            throw new Error(data.message || "Izinli liste yuklenemedi");
+        }
+
+        if (!data.groups || data.groups.length === 0) {
+            list.innerHTML = '<div class="empty-state" style="padding: 25px 10px;"><i class="fas fa-user-slash"></i><p>Henuz izinli kullanici kaydi yok.</p></div>';
+            return;
+        }
+
+        data.groups.forEach((group) => {
+            const card = document.createElement("div");
+            card.className = "exemption-card";
+
+            const link = document.createElement("div");
+            link.className = "exemption-link";
+            link.innerHTML = `<strong>Link:</strong> ${group.post_link}`;
+            card.appendChild(link);
+
+            const users = document.createElement("div");
+            users.className = "exemption-users";
+
+            group.usernames.forEach((username) => {
+                const chip = document.createElement("span");
+                chip.className = "exemption-chip";
+
+                const label = document.createElement("span");
+                label.textContent = `@${username}`;
+
+                const removeBtn = document.createElement("button");
+                removeBtn.type = "button";
+                removeBtn.className = "chip-remove";
+                removeBtn.innerHTML = "<i class=\"fas fa-times\"></i>";
+                removeBtn.title = "Kaldir";
+                removeBtn.addEventListener("click", () => removeExemption(group.post_link, username));
+
+                chip.appendChild(label);
+                chip.appendChild(removeBtn);
+                users.appendChild(chip);
+            });
+
+            card.appendChild(users);
+
+            const actions = document.createElement("div");
+            actions.className = "token-actions";
+
+            const removeAllBtn = document.createElement("button");
+            removeAllBtn.type = "button";
+            removeAllBtn.className = "btn btn-danger";
+            removeAllBtn.innerHTML = `<i class=\"fas fa-trash\"></i> Linkteki Tum Izinlileri Sil (${group.count})`;
+            removeAllBtn.addEventListener("click", () => removeExemptionsByLink(group.post_link));
+
+            actions.appendChild(removeAllBtn);
+            card.appendChild(actions);
+
+            list.appendChild(card);
+        });
+    } catch (error) {
+        loading.classList.remove("show");
+        showAlert(`Izinli liste yuklenemedi: ${error.message}`, "error");
+    }
+}
+
+async function addExemptionAdmin(postLink, username) {
+    const data = await postJson("/admin/add_exemption", { post_link: postLink, username });
+    if (!data.success) {
+        throw new Error(data.message || "Ekleme basarisiz");
+    }
+    return data;
+}
+
+async function removeExemption(postLink, username) {
+    if (!confirm(`@${username} izinli listesinden kaldirilsin mi?`)) {
+        return;
+    }
+
+    try {
+        const data = await postJson("/admin/delete_exemption", { post_link: postLink, username });
+        if (!data.success) {
+            showAlert(data.message || "Kaldirma basarisiz", "error");
+            return;
+        }
+        showAlert(data.message, "success");
+        loadExemptions();
+    } catch (error) {
+        showAlert(`Bir hata olustu: ${error.message}`, "error");
+    }
+}
+
+async function removeExemptionsByLink(postLink) {
+    if (!confirm("Bu linkteki tum izinli kullanicilar kaldirilacak. Devam edilsin mi?")) {
+        return;
+    }
+
+    try {
+        const data = await postJson("/admin/delete_exemptions_by_link", { post_link: postLink });
+        if (!data.success) {
+            showAlert(data.message || "Silme basarisiz", "error");
+            return;
+        }
+        showAlert(data.message, "success");
+        loadExemptions();
+    } catch (error) {
+        showAlert(`Bir hata olustu: ${error.message}`, "error");
+    }
+}
+
 async function loadTokens() {
     const loading = document.getElementById("loading");
     const tokensList = document.getElementById("tokensList");
@@ -283,12 +428,42 @@ document.getElementById("editTokenForm").addEventListener("submit", async (event
     }
 });
 
+document.getElementById("addExemptionForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const postLink = document.getElementById("exemption_post_link").value.trim();
+    const username = document.getElementById("exemption_username").value.trim().replace(/^@+/, "");
+
+    if (!postLink || !username) {
+        showAlert("Paylasim linki ve kullanici adi zorunlu", "error");
+        return;
+    }
+
+    try {
+        const data = await addExemptionAdmin(postLink, username);
+        showAlert(data.message, "success");
+        document.getElementById("addExemptionForm").reset();
+        loadExemptions();
+    } catch (error) {
+        showAlert(error.message, "error");
+    }
+});
+
 window.toggleToken = toggleToken;
 window.validateToken = validateToken;
 window.deleteToken = deleteToken;
 window.reloginToken = reloginToken;
 window.editToken = editToken;
 window.closeEditModal = closeEditModal;
+window.removeExemption = removeExemption;
+window.removeExemptionsByLink = removeExemptionsByLink;
+window.toggleExemptionsPanel = toggleExemptionsPanel;
 
 loadTokens();
-setInterval(loadTokens, 30000);
+setInterval(() => {
+    loadTokens();
+    const body = document.getElementById("exemptionsSectionBody");
+    if (body && !body.classList.contains("collapsed")) {
+        loadExemptions();
+    }
+}, 30000);
