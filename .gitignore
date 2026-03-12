@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+
+app.db
+token.json
+tokens.json
+exemptions.json
+
+.env
+*.log

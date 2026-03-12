@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eksikler</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #000000 0%, #0a0a1a 50%, #0d0d1f 100%);
+            min-height: 100vh;
+            padding: 30px 20px;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(circle at 20% 50%, rgba(30, 30, 60, 0.15) 0%, transparent 50%),
+                        radial-gradient(circle at 80% 80%, rgba(20, 20, 50, 0.15) 0%, transparent 50%);
+            pointer-events: none;
+        }
+
+        .result-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            padding: 30px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .result-card h1 {
+            color: #fff;
+            font-weight: 600;
+            font-size: 28px;
+        }
+
+        #elemanSayisi {
+            color: #fbbf24;
+            font-weight: 500;
+            font-size: 16px;
+        }
+
+        .search-container {
+            position: relative;
+        }
+
+        .search-input {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #fff;
+            border-radius: 12px;
+            padding: 12px 16px 12px 45px;
+            width: 100%;
+            transition: all 0.3s ease;
+        }
+
+        .search-input:focus {
+            outline: none;
+            background: rgba(255, 255, 255, 0.12);
+            border-color: #7877c6;
+            box-shadow: 0 0 0 0.2rem rgba(120, 119, 198, 0.25);
+        }
+
+        .search-input::placeholder {
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: rgba(255, 255, 255, 0.6);
+            z-index: 2;
+        }
+
+        .list-group-item {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            color: #fff;
+            margin-bottom: 10px;
+            padding: 15px 20px;
+            transition: all 0.3s ease;
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .list-group-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(120, 119, 198, 0.3);
+            transform: translateX(5px);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #1a1a2e 0%, #0f0f1e 100%);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 14px 28px;
+            font-weight: 600;
+            color: #fff;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #252538 0%, #1a1a2e 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.7);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .notification {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            opacity: 0;
+            transition: opacity 0.3s, transform 0.3s;
+            min-width: 300px;
+            max-width: 600px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+        }
+
+        .notification.visible {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .notification i {
+            margin-right: 10px;
+            color: #10b981;
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(5px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            animation: fadeIn 0.2s ease;
+        }
+
+        .modal-overlay.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            padding: 30px;
+            max-width: 400px;
+            width: 90%;
+            animation: slideUp 0.3s ease;
+        }
+
+        .modal-header {
+            color: #fff;
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .modal-header i {
+            color: #fbbf24;
+        }
+
+        .modal-body {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 15px;
+            margin-bottom: 25px;
+            line-height: 1.6;
+        }
+
+        .modal-username {
+            color: #fbbf24;
+            font-weight: 600;
+        }
+
+        .modal-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .modal-btn {
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 14px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .modal-btn-cancel {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+
+        .modal-btn-cancel:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .modal-btn-confirm {
+            background: linear-gradient(135deg, #1a1a2e 0%, #0f0f1e 100%);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-btn-confirm:hover {
+            background: linear-gradient(135deg, #252538 0%, #1a1a2e 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.7);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideUp {
+            from { 
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to { 
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .btn-exemption {
+            background: linear-gradient(135deg, #1a1a2e 0%, #0f0f1e 100%);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 6px 12px;
+            font-weight: 600;
+            color: #fff;
+            font-size: 13px;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .btn-exemption:hover {
+            background: linear-gradient(135deg, #252538 0%, #1a1a2e 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.7);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-exemption:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .username-text {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            min-width: 0;
+        }
+    </style>
+</head>
+<body data-post-link='{{ post_link|e }}'>
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-12 col-lg-8 col-xl-7">
+                <div class="result-card">
+                    <div class="text-center mb-4">
+                        <h1 class="mb-3">
+                            <i class="fas fa-user-minus me-2"></i>Eksikler
+                        </h1>
+                        <span id="elemanSayisi" class="d-block mb-3"></span>
+                        
+                        <!-- Arama Girişi -->
+                        <div class="search-container mb-3">
+                            <i class="fas fa-search search-icon"></i>
+                            <input type="text" id="searchInput" placeholder="Kullanıcı adı ara..." 
+                                   class="search-input" onkeyup="filterList()">
+                        </div>
+                        
+                        <button class="btn btn-primary" onclick="kopyalaListeyi()">
+                            <i class="fas fa-copy me-2"></i>Listeyi Kopyala
+                        </button>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <ul class="list-group list-group-flush" id="eksiklerListesi">
+                            {% for eksik in eksikler %}
+                            <li class="list-group-item" data-username="{{ eksik }}">
+                                <span class="username-text">
+                                    <i class="fas fa-user me-2"></i><strong>{{ eksik }}</strong>
+                                </span>
+                                <button class="btn btn-exemption" onclick="addExemption('{{ eksik }}', this)">
+                                    <i class="fas fa-check me-1"></i>İzinli Say
+                                </button>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bildirim -->
+    <div id="notification" class="notification">
+        <i class="fas fa-check-circle"></i>
+        <span id="notification-message"></span>
+    </div>
+
+    <!-- Onay Modalı -->
+    <div id="confirmModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <i class="fas fa-exclamation-circle"></i>
+                Onay Gerekli
+            </div>
+            <div class="modal-body">
+                <span class="modal-username" id="modalUsername"></span> kullanıcısını izinli sayacaksınız. Emin misiniz?
+            </div>
+            <div class="modal-buttons">
+                <button class="modal-btn modal-btn-cancel" onclick="closeModal()">
+                    <i class="fas fa-times me-1"></i>Hayır
+                </button>
+                <button class="modal-btn modal-btn-confirm" onclick="confirmExemption()">
+                    <i class="fas fa-check me-1"></i>Evet
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/result.js') }}"></script>
+</body>
+
+</html>
